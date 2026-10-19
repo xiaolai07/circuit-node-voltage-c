@@ -1,0 +1,117 @@
+#define _CRT_SECURE_NO_WARNINGS
+#include <stdio.h>
+#include <math.h>
+#define MAX_N 10     // 最大节点数
+#define MAX_R 50    // 最大电阻数
+// 电阻结构体：保存两端节点、电阻值
+typedef struct {
+    int p;
+    int q;
+    double R;
+} Resistor;
+Resistor resList[MAX_R];  // 存储全部电阻
+int resCount = 0;         // 实际电阻数量
+void Gauss(double mat[MAX_N][MAX_N + 1], int n)   //高斯消元函数
+{
+    int i, j, k;
+    for (k = 0; k < n; k++)
+    {
+        for (i = k + 1; i < n; i++)
+        {
+            double div = mat[i][k] / mat[k][k];
+            for (j = k; j <= n; j++)
+            {
+                mat[i][j] -= div * mat[k][j];
+            }
+        }
+    }
+    for (i = n - 1; i >= 0; i--)
+    {
+        double sum = 0.0;
+        for (j = i + 1; j < n; j++)
+            sum += mat[i][j] * mat[j][n];
+        mat[i][n] = (mat[i][n] - sum) / mat[i][i];
+    }
+}
+int main(void)
+{
+    double G[MAX_N][MAX_N] = { 0.0 };
+    double Ivec[MAX_N] = { 0.0 };   //电流
+    double aug[MAX_N][MAX_N + 1];   //增广矩阵
+    double nodeVolt[MAX_N]; // 保存各独立节点电压
+    int n, i, numR, numI;
+    int retScan; // 接收scanf返回值
+    printf("输入节点总数量：");
+    retScan = scanf("%d", &n);
+    printf("输入电阻总数量：");
+    retScan = scanf("%d", &numR);
+    resCount = numR;
+    for (i = 0; i < numR; i++)
+    {
+        int p, q;
+        double R;
+        printf("电阻%d，两端节点 p q 电阻R：", i + 1);
+        retScan = scanf("%d %d %lf", &p, &q, &R);
+        // 存入电阻列表
+        resList[i].p = p;
+        resList[i].q = q;
+        resList[i].R = R;
+        double g = 1.0 / R;
+        if (p != 0)
+            G[p - 1][p - 1] += g;   //自电导之和
+        if (q != 0)
+            G[q - 1][q - 1] += g;
+        if (p != 0 && q != 0)
+        {
+            G[p - 1][q - 1] -= g;   //互电导之和的负值
+            G[q - 1][p - 1] -= g;
+        }
+    }
+    printf("输入电流源总数量：");
+    retScan = scanf("%d", &numI);
+    for (i = 0; i < numI; i++)
+    {
+        int node;
+        double cur;
+        printf("电流源%d，流入节点 电流值：", i + 1);
+        retScan = scanf("%d %lf", &node, &cur);
+        if (node != 0)
+            Ivec[node - 1] += cur;
+    }
+    // 构造增广矩阵
+    for (i = 0; i < n; i++)
+    {
+        for (int j = 0; j < n; j++)
+            aug[i][j] = G[i][j];
+        aug[i][n] = Ivec[i];
+    }
+    Gauss(aug, n);
+    // 提取节点电压到数组
+    for (i = 0; i < n; i++)
+    {
+        nodeVolt[i] = aug[i][n];
+    }
+    // 1.打印节点电压结果
+    printf("\n节点电压\n");
+    for (i = 0; i < n; i++)
+    {
+        printf("节点%d 电压 = %.3lf V\n", i + 1, nodeVolt[i]);
+    }
+    // 2.循环计算并打印每一个电阻的电流
+    printf("\n支路电流\n");
+    for (i = 0; i < resCount; i++)
+    {
+        int p = resList[i].p;
+        int q = resList[i].q;
+        double R = resList[i].R;
+        double Up, Uq, deltaU, I;
+        // 获取p节点电压：0号地电压=0，其余取数组值
+        Up = (p == 0) ? 0.0 : nodeVolt[p - 1];
+        Uq = (q == 0) ? 0.0 : nodeVolt[q - 1];
+        deltaU = Up - Uq; // 电压差 p--q
+        I = deltaU / R;   // 电流I=(Up-Uq)/R
+        printf("电阻%d（节点%d -- 节点%d，R=%.2lfΩ）：电流 = %.4lf A\n",
+            i + 1, p, q, R, I);
+    }
+    return 0;
+}
